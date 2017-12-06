@@ -12,6 +12,9 @@ using System.Reflection;
 using TShockAPI.DB;
 using MySql.Data.MySqlClient;
 
+using DSharpPlus;
+using System.Threading.Tasks;
+
 namespace DiscordBridge
 {
     [ApiVersion(2, 1)]
@@ -20,11 +23,13 @@ namespace DiscordBridge
         #region Plugin Info
         public override string Name => "DiscordBridge";
         public override string Author => "Ryozuki";
-        public override string Description => "I do this and that.";
+        public override string Description => "A chat bridge between discord and terraria.";
         public override Version Version => Assembly.GetExecutingAssembly().GetName().Version;
         #endregion
 
         public Util.ConfigFile Config = new Util.ConfigFile();
+
+        static DiscordClient DiscordBot;
 
         public DiscordBridge(Main game) : base(game)
         {
@@ -36,11 +41,39 @@ namespace DiscordBridge
             Config = Util.ConfigFile.Read(path);
         }
 
-        public override void Initialize()
+        public override async void Initialize()
         {
             LoadConfig();
+
+            DiscordBot = new DiscordClient(new DiscordConfiguration
+            {
+                Token = Config.DiscordBotToken,
+                TokenType = TokenType.Bot
+            });
+
+            DiscordBot.MessageCreated += DiscordBot_MessageCreated;
+
             ServerApi.Hooks.GameInitialize.Register(this, OnInitialize);
             ServerApi.Hooks.GamePostInitialize.Register(this, OnPostInitialize);
+            TShockAPI.Hooks.PlayerHooks.PlayerChat += PlayerHooks_PlayerChat;
+
+            await DiscordBot.ConnectAsync();
+        }
+
+        private async void PlayerHooks_PlayerChat(TShockAPI.Hooks.PlayerChatEventArgs e)
+        {
+            var channel = await DiscordBot.GetChannelAsync(Config.DiscordChannelID);
+            await DiscordBot.SendMessageAsync(channel, e.TShockFormattedText);
+        }
+
+        private Task DiscordBot_MessageCreated(DSharpPlus.EventArgs.MessageCreateEventArgs e)
+        {
+            if (e.Author == DiscordBot.CurrentUser)
+                return Task.CompletedTask;
+            if (e.Channel.Id != Config.DiscordChannelID)
+                return Task.CompletedTask;
+            TShock.Utils.Broadcast(String.Format(Config.MessageFormatDiscordToTerraria, e.Author.Username, e.Message.Content), Config.GetColor());
+            return Task.CompletedTask;
         }
 
         protected override void Dispose(bool disposing)
@@ -63,9 +96,9 @@ namespace DiscordBridge
                 new SqlColumn("Balance", MySqlDbType.Float) { DefaultValue = "0" }
                 ));*/
 
-            Commands.ChatCommands.Add(new Command("DiscordBridge.help".ToLower(), CHelp, "chelp")
+            Commands.ChatCommands.Add(new Command("DiscordBridge.reload".ToLower(), DiscordReload, "discord_reload")
             {
-                HelpText = "Usage: /chelp"
+                HelpText = "Usage: /discord_reload"
             });
         }
 
@@ -76,9 +109,21 @@ namespace DiscordBridge
         #endregion
 
         #region Commands
-        private void CHelp(CommandArgs args)
+        private async void DiscordReload(CommandArgs args)
         {
-            args.Player.SendInfoMessage("Author, please change me.");
+            Config = Util.ConfigFile.Read(Path.Combine(TShock.SavePath, "DiscordBridge.json"));
+
+            await DiscordBot.DisconnectAsync();
+
+            DiscordBot = new DiscordClient(new DiscordConfiguration
+            {
+                Token = Config.DiscordBotToken,
+                TokenType = TokenType.Bot
+            });
+
+            await DiscordBot.ConnectAsync();
+
+            args.Player.SendSuccessMessage("Succesfully reloaded DiscordBridge.");
         }
         #endregion
     }
