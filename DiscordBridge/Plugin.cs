@@ -90,11 +90,6 @@ namespace DiscordBridge
         private void OnInitialize(EventArgs args)
         {
             Util.DBHelper.Connect();
-            /*Util.DBHelper.CreateTable(new SqlTable("DiscordBridge",
-                new SqlColumn("ID", MySqlDbType.Int32) { Primary = true, Unique = true, Length = 7, AutoIncrement = true },
-                new SqlColumn("UserID", MySqlDbType.Int32) { Length = 6 },
-                new SqlColumn("Balance", MySqlDbType.Float) { DefaultValue = "0" }
-                ));*/
 
             Commands.ChatCommands.Add(new Command("DiscordBridge.reload".ToLower(), DiscordReload, "discord_reload")
             {
