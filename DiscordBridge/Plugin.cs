@@ -62,8 +62,16 @@ namespace DiscordBridge
 
         private async void PlayerHooks_PlayerChat(TShockAPI.Hooks.PlayerChatEventArgs e)
         {
-            var channel = await DiscordBot.GetChannelAsync(Config.DiscordChannelID);
-            await DiscordBot.SendMessageAsync(channel, e.TShockFormattedText);
+            try
+            {
+                var channel = await DiscordBot.GetChannelAsync(Config.DiscordChannelID);
+                await DiscordBot.SendMessageAsync(channel, e.TShockFormattedText);
+            }
+            catch(Exception a)
+            {
+                TShock.Log.ConsoleError("DiscordBridge error when sending message to discord: {0}", a.Message);
+            }
+            
         }
 
         private Task DiscordBot_MessageCreated(DSharpPlus.EventArgs.MessageCreateEventArgs e)
